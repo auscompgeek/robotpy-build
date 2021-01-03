@@ -49,7 +49,7 @@ jobs:
       working-directory: dist
       run: |
         tar xvf *.tar.gz
-        mv */docs ..
+        mv */docs */examples ..
 
     - name: Install docs requirements
       run: pip --disable-pip-version-check install -r docs/requirements.txt
