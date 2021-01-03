@@ -35,6 +35,9 @@ jobs:
     
     steps:
     - uses: actions/download-artifact@v2
+      with:
+        name: dist
+        path: dist
     - uses: actions/setup-python@v2
       with:
         python-version: 3.8
@@ -42,11 +45,11 @@ jobs:
     - name: Install project
       run: pip --disable-pip-version-check install dist/*.whl
 
-    - name: Extract sdist
+    - name: Extract docs from sdist
       working-directory: dist
       run: |
         tar xvf *.tar.gz
-        mv robotpy-build-*/* ..
+        mv */docs ..
 
     - name: Install docs requirements
       run: pip --disable-pip-version-check install -r docs/requirements.txt
@@ -70,6 +73,9 @@ jobs:
 
     steps:
     - uses: actions/download-artifact@v2
+      with:
+        name: dist
+        path: dist
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python_version }}
@@ -79,12 +85,12 @@ jobs:
       shell: bash
       run: pip --disable-pip-version-check install wheel dist/*.whl
 
-    - name: Extract sdist
+    - name: Extract tests from sdist
       shell: bash
       working-directory: dist
       run: |
         tar xvf *.tar.gz
-        mv robotpy-build-*/* ..
+        mv */tests ..
 
     - name: Test wheel
       env:
@@ -109,15 +115,18 @@ jobs:
     
     steps:
     - uses: actions/download-artifact@v2
+      with:
+        name: dist
+        path: dist
 
     - name: Install
-      run: /build/venv/bin/cross-pip --disable-pip-version-check install wheel dist/*.whl
+      run: /build/venv/bin/cross-pip --disable-pip-version-check install dist/*.whl
 
-    - name: Extract sdist
+    - name: Extract tests from sdist
       working-directory: dist
       run: |
         tar xvf *.tar.gz
-        mv robotpy-build-*/* ..
+        mv */tests ..
 
     - name: Build cross wheel
       env:
@@ -133,6 +142,9 @@ jobs:
 
     steps:
     - uses: actions/download-artifact@v2
+      with:
+        name: dist
+        path: dist
 
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@master
