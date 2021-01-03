@@ -1,5 +1,5 @@
 ---
-name: dist
+name: CI
 
 on: [push, pull_request]
 
@@ -9,25 +9,53 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - uses: psf/black@stable
-  
-  check-doc:
-    runs-on: ubuntu-18.04
-    
+
+  dist:
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
       with:
-        submodules: recursive
+        submodules: true
+    - uses: actions/setup-python@v2
 
+    - name: Install build dependencies
+      run: pip --disable-pip-version-check install wheel
+
+    - name: Build packages
+      run: python setup.py sdist bdist_wheel
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: dist
+        path: dist
+
+  check-doc:
+    needs: [dist]
+    runs-on: ubuntu-18.04
+    
+    steps:
+    - uses: actions/download-artifact@v2
     - uses: actions/setup-python@v2
       with:
         python-version: 3.8
-    - name: Sphinx
+
+    - name: Install project
+      run: pip --disable-pip-version-check install dist/*.whl
+
+    - name: Extract sdist
+      working-directory: dist
       run: |
-        pip --disable-pip-version-check install -e .
-        pip --disable-pip-version-check install -r docs/requirements.txt
-        cd docs && make clean html SPHINXOPTS="-W --keep-going"
-  
+        tar xvf *.tar.gz
+        mv robotpy-build-*/* ..
+
+    - name: Install docs requirements
+      run: pip --disable-pip-version-check install -r docs/requirements.txt
+
+    - name: Build docs
+      run: make -C docs html SPHINXOPTS="-W --keep-going"
+
   test:
+    needs: [dist]
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -41,34 +69,32 @@ jobs:
           architecture: x86
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: recursive
-    
+    - uses: actions/download-artifact@v2
     - uses: actions/setup-python@v2
       with:
         python-version: ${{ matrix.python_version }}
         architecture: ${{ matrix.architecture }}
 
-    - name: Install build dependencies
-      run: pip --disable-pip-version-check install wheel
+    - name: Install
+      run: pip --disable-pip-version-check install wheel dist/*.whl
 
-    - name: Build wheel
-      run: python setup.py bdist_wheel
-    
+    - name: Extract sdist
+      working-directory: dist
+      run: |
+        tar xvf *.tar.gz
+        mv robotpy-build-*/* ..
+
     - name: Test wheel
-      shell: bash
       env:
         RPYBUILD_PARALLEL: 1
         RPYBUILD_STRIP_LIBPYTHON: 1
+      working-directory: tests
       run: |
-        cd dist
-        python -m pip --disable-pip-version-check install *.whl
-        cd ../tests
         python -m pip --disable-pip-version-check install -r requirements.txt
         python run_tests.py
 
   cross-build:
+    needs: [dist]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -80,26 +106,23 @@ jobs:
       image: "${{ matrix.container }}"
     
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: recursive
-    
-    - name: Install build dependencies
-      run: /build/venv/bin/cross-pip --disable-pip-version-check install wheel
+    - uses: actions/download-artifact@v2
 
-    - name: Build wheel
-      run: /build/venv/bin/cross-python setup.py bdist_wheel
-    
+    - name: Install
+      run: /build/venv/bin/cross-pip --disable-pip-version-check install wheel dist/*.whl
+
+    - name: Extract sdist
+      working-directory: dist
+      run: |
+        tar xvf *.tar.gz
+        mv robotpy-build-*/* ..
+
     - name: Build cross wheel
-      shell: bash
       env:
         RPYBUILD_PARALLEL: 1
         RPYBUILD_STRIP_LIBPYTHON: 1
-      run: |
-        cd dist
-        /build/venv/bin/cross-pip --disable-pip-version-check install *.whl
-        cd ../tests/cpp
-        /build/venv/bin/cross-python run_install.py wheel
+      working-directory: tests/cpp
+      run: /build/venv/bin/cross-python run_install.py wheel
 
   publish:
     runs-on: ubuntu-latest
@@ -107,17 +130,8 @@ jobs:
     if: github.event_name == 'push' && startsWith(github.event.ref, 'refs/tags')
 
     steps:
-    - uses: actions/checkout@v2
-      with:
-        submodules: recursive
-    
-    - uses: actions/setup-python@v2
-      with:
-        python-version: 3.8
-    - run: pip --disable-pip-version-check install wheel
+    - uses: actions/download-artifact@v2
 
-    - name: Build packages
-      run: python setup.py sdist bdist_wheel
     - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@master
       with:
