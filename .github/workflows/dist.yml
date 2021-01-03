@@ -76,9 +76,11 @@ jobs:
         architecture: ${{ matrix.architecture }}
 
     - name: Install
+      shell: bash
       run: pip --disable-pip-version-check install wheel dist/*.whl
 
     - name: Extract sdist
+      shell: bash
       working-directory: dist
       run: |
         tar xvf *.tar.gz
